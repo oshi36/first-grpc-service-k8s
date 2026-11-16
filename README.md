@@ -1,4 +1,4 @@
-# Your First gRPC Service on Kubernetes — Demo Runbook
+# Your First gRPC Service on Kubernetes - Demo Runbook
 
 > **Presenting with the live dashboard?** Follow **[DEMO-SCRIPT.md](DEMO-SCRIPT.md)**: what to type, where to point, and what to say for every act.
 > Quick start: `make setup` → `make stage` → `make ui` → open http://localhost:8081
@@ -6,7 +6,7 @@
 ![dashboard](docs/dashboard-balance.png)
 
 A live demo in four acts: **package it → health-check it → route it → load-balance it.**
-Each act starts with the mistake beginners usually make, then shows the fix. The same image is used throughout, and its behaviour is switched with env vars.
+Each act starts with the mistake beginners usually make, then shows the fix. The same image is used throughout, and its behavior is switched with env vars.
 
 ```
 .
