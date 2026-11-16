@@ -1,7 +1,5 @@
 # Your First gRPC Service on Kubernetes - Demo Runbook
 
-> **Presenting with the live dashboard?** Follow **[DEMO-SCRIPT.md](DEMO-SCRIPT.md)**: what to type, where to point, and what to say for every act.
-> Quick start: `make setup` → `make stage` → `make ui` → open http://localhost:8081
 
 ![dashboard](docs/dashboard-balance.png)
 
@@ -35,16 +33,17 @@ Each act starts with the mistake beginners usually make, then shows the fix. The
 
 `docker`, `kind`, `kubectl`, `helm`, `grpcurl`. Run `make prereqs` to check them.
 
-**Do this before you go on stage.** It downloads images and is the slowest step:
 
 ```bash
 make setup        # kind cluster + Envoy Gateway (EG_VERSION=v1.6.1 by default; override if newer)
-make build        # build + kind load
+make build        # build image + kind load
+make stage        # build dashboard
+make ui           # Access the dashboard UI
 ```
 
-Between rehearsals, run `make reset`. It keeps the cluster and Envoy Gateway and deletes the app.
+Between runs, run `make reset`. It keeps the cluster and Envoy Gateway and deletes the app.
 
-Use **two terminals** on stage. Terminal A runs the commands. Terminal B runs `kubectl -n grpc-demo get pods -w`, and later `make gw-forward` and `make act4-watch`.
+Use **two terminals**: Terminal A runs the commands. Terminal B runs `kubectl -n grpc-demo get pods -w`, and later `make gw-forward` and `make act4-watch`.
 
 ---
 
