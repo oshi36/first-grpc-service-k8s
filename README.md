@@ -1,6 +1,5 @@
 # Your First gRPC Service on Kubernetes - Demo Runbook
 
-
 ![dashboard](docs/dashboard-balance.png)
 
 A live demo in four acts: **package it → health-check it → route it → load-balance it.**
@@ -53,9 +52,8 @@ Use **two terminals**: Terminal A runs the commands. Terminal B runs `kubectl -n
 make act1
 ```
 
-**Show:** the image is a few MB. `sh` doesn't exist in it (distroless).
+The image is a few MB. `sh` doesn't exist in it (distroless).
 
-**Say:**
 - Generated code is committed, so the build only needs Go. That's one less tool in CI.
 - Use a static binary, distroless, and a **numeric** `USER 65532`. With a named user, `runAsNonRoot: true` fails ("image has non-numeric user"). Beginners hit that one constantly.
 - There's no shell, so no `grpc_health_probe` binary to exec. That's why Act 2 uses the kubelet's native probe.
@@ -69,10 +67,10 @@ make act2-wrong
 kubectl -n grpc-demo describe pod -l app=greeter | grep -A1 'probe failed' | head -4
 ```
 
-**Expected:** `READY 0/1`, and `RESTARTS` keeps climbing. The events show something like
+ `READY 0/1`, and `RESTARTS` keeps climbing. The events show something like
 `Liveness probe failed: Get "http://10.244.x.x:50051/healthz": net/http: HTTP/1.x transport connection broken: malformed HTTP response "\x00\x00\x06\x04..."`
 
-**Say:** "`httpGet` speaks HTTP/1.1. gRPC speaks HTTP/2 only. Those bytes are an HTTP/2 SETTINGS frame. The server is fine, but the probe can't talk to it." This is the **same root cause** as the classic Ingress breakage: anything in the path that only speaks HTTP/1.1 breaks gRPC.
+ "`httpGet` speaks HTTP/1.1. gRPC speaks HTTP/2 only. Those bytes are an HTTP/2 SETTINGS frame. The server is fine, but the probe can't talk to it." This is the **same root cause** as the classic Ingress breakage: anything in the path that only speaks HTTP/1.1 breaks gRPC.
 
 Optional one-liner to show the same thing by hand:
 `kubectl -n grpc-demo run curl --rm -i --image=curlimages/curl --restart=Never -- curl -sS --http1.1 http://<pod-ip>:50051/` → `Received HTTP/0.9 when not allowed`
@@ -82,10 +80,9 @@ Optional one-liner to show the same thing by hand:
 ```bash
 make act2-fix
 ```
+New pods sit at `0/1 Running` for about 8s (warm-up), then flip to `1/1`. No restarts.
 
-**Expected (Terminal B):** new pods sit at `0/1 Running` for about 8s (warm-up), then flip to `1/1`. No restarts.
-
-**Walk through `02-deployment.yaml`:**
+**Check `02-deployment.yaml`:**
 - `grpc: { port: 50051 }` makes the kubelet call `grpc.health.v1.Health/Check`. This is GA since 1.27.
 - ⚠️ `port` must be a **number**. Named ports are not supported for gRPC probes.
 - **Readiness** asks `service: ""`, meaning "can I take traffic?". It is NOT_SERVING during warm-up.
@@ -100,7 +97,6 @@ make gw-forward      # Terminal B (leave running)
 make act3-call       # Terminal A
 ```
 
-**Expected:**
 ```
 greeter.v1.Greeter
 grpc.reflection.v1.ServerReflection
@@ -111,7 +107,7 @@ grpc.reflection.v1alpha.ServerReflection
 ERROR: ... unexpected HTTP status code received from server: 404 (Not Found)
 ```
 
-**Walk through `05-grpcroute.yaml`:** it matches on `method.service` (and optionally `method.method`). Those are gRPC concepts, not URL paths or vendor annotations. Then point out the role split: GatewayClass belongs to the platform team, Gateway to the operator, GRPCRoute to the app team. Also mention `appProtocol: kubernetes.io/h2c` on the Service. It's the portable way to say "talk HTTP/2 to me".
+**Check `05-grpcroute.yaml`:** it matches on `method.service` (and optionally `method.method`). Those are gRPC concepts, not URL paths or vendor annotations. Then point out the role split: GatewayClass belongs to the platform team, Gateway to the operator, GRPCRoute to the app team. Also mention `appProtocol: kubernetes.io/h2c` on the Service. It's the portable way to say "talk HTTP/2 to me".
 
 **Framing:** Ingress NGINX, the controller most beginner tutorials still use (with `backend-protocol: "GRPC"` annotations), was retired in March 2026. It no longer gets releases or security fixes. Gateway API is the recommended path.
 
@@ -122,15 +118,13 @@ ERROR: ... unexpected HTTP status code received from server: 404 (Not Found)
 ```bash
 make act4-problem
 ```
-
-**Expected :**
 ```
 target=greeter.grpc-demo.svc.cluster.local:50051  lb=pick_first  (one ClientConn, reused for every RPC)
 ── result ── 300 requests, 1 pod(s) hit
   greeter-7c9f...-x2kqp                  300  ████████████████████████████████████████
 ```
 
-**Say:** "Three replicas, and one does all the work. kube-proxy balances **connections**, not requests. gRPC opens **one** HTTP/2 connection and multiplexes every RPC over it. Kubernetes did exactly what it promised, just not what we expected."
+"Three replicas, and one does all the work. kube-proxy balances **connections**, not requests. gRPC opens **one** HTTP/2 connection and multiplexes every RPC over it. Kubernetes did exactly what it promised, just not what we expected."
 
 ### 4b: fix #1, client-side load balancing
 
