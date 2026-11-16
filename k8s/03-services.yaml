@@ -1,0 +1,30 @@
+# Regular ClusterIP Service: one virtual IP. kube-proxy balances per
+# CONNECTION, and a gRPC client keeps one long-lived HTTP/2 connection...
+apiVersion: v1
+kind: Service
+metadata:
+  name: greeter
+  namespace: grpc-demo
+spec:
+  selector: { app: greeter }
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      appProtocol: kubernetes.io/h2c   # tells Gateways/meshes: speak HTTP/2 cleartext to me
+---
+# Headless Service (clusterIP: None): DNS returns every ready pod IP,
+# so a client with round_robin can open one connection per pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: greeter-headless
+  namespace: grpc-demo
+spec:
+  clusterIP: None
+  selector: { app: greeter }
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      appProtocol: kubernetes.io/h2c

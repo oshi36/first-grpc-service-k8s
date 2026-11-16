@@ -1,0 +1,44 @@
+# ACT 3 - Gateway API.
+# GatewayClass: "which implementation?"   (owned by the platform team)
+# Gateway:      "where do we listen?"      (owned by the cluster operator)
+# GRPCRoute:    "which RPCs go where?"     (owned by the app team)
+#
+# kind has no cloud load balancer, so a LoadBalancer Service would never get
+# an address and the Gateway would stay "Programmed: False".
+# ClusterIP is enough: the dashboard and `make gw-forward` reach Envoy from
+# inside the cluster. (On a real cloud cluster, drop the EnvoyProxy block.)
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: clusterip-proxy
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: eg
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: clusterip-proxy
+    namespace: envoy-gateway-system
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: grpc-gw
+  namespace: grpc-demo
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: grpc
+      protocol: HTTP      # GRPCRoute attaches to HTTP/HTTPS listeners; h2c is negotiated
+      port: 80

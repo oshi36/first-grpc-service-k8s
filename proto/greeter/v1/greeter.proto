@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package greeter.v1;
+
+option go_package = "grpc-k8s-demo/gen/greeter/v1;greeterv1";
+
+// Greeter is the service we deploy in the demo.
+// Every reply carries the name of the pod that served it, so we can
+// SEE how traffic is spread across replicas.
+service Greeter {
+  rpc SayHello(HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+  string pod = 2;
+}

@@ -1,0 +1,58 @@
+# ACT 2b - native gRPC probes (GA since Kubernetes 1.27).
+#
+# The kubelet calls grpc.health.v1.Health/Check on the container.
+#   readiness -> service ""         "can I take traffic yet?" (NOT_SERVING during warm-up)
+#   liveness  -> service "liveness" "is the process alive?"   (always SERVING while up)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter
+  namespace: grpc-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: greeter }
+  template:
+    metadata:
+      labels: { app: greeter }
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: greeter
+          image: greeter:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50051
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            - name: WARMUP_SECONDS   # simulate cache warm-up / slow start
+              value: "8"
+          readinessProbe:
+            grpc:
+              port: 50051           # ⚠️ must be a NUMBER; named ports are not supported for grpc probes
+              # service: ""         # default = overall server health
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            grpc:
+              port: 50051
+              service: liveness
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep:                # give endpoints/proxies time to drop us before SIGTERM
+                seconds: 5          # (distroless has no `sleep` binary; needs k8s >= 1.30)
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }

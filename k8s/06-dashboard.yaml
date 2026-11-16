@@ -1,0 +1,121 @@
+# Live dashboard: runs in-cluster as the gRPC CLIENT (3 traffic lanes) and
+# reads pods/events/deployment from the Kubernetes API.
+# Open it with:  make ui   ->  http://localhost:8081
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dashboard
+  namespace: grpc-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dashboard
+  namespace: grpc-demo
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]          # delete = the ✕ button on pod cards
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]                   # patch = MaxConnectionAge toggle
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch"]                   # the − / + replica buttons
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dashboard
+  namespace: grpc-demo
+subjects:
+  - kind: ServiceAccount
+    name: dashboard
+    namespace: grpc-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dashboard
+---
+# Lets the dashboard find the Envoy Service that Envoy Gateway creates for our Gateway.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grpc-demo-dashboard
+  namespace: envoy-gateway-system
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grpc-demo-dashboard
+  namespace: envoy-gateway-system
+subjects:
+  - kind: ServiceAccount
+    name: dashboard
+    namespace: grpc-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: grpc-demo-dashboard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: grpc-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dashboard }
+  template:
+    metadata:
+      labels: { app: dashboard }
+    spec:
+      serviceAccountName: dashboard
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: dashboard
+          image: greeter:v1
+          imagePullPolicy: IfNotPresent
+          command: ["/dashboard"]
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef: { fieldPath: metadata.namespace }
+            - name: GATEWAY_AUTHORITY
+              value: greeter.demo.local
+            - name: RATE                 # RPCs per second, per lane
+              value: "20"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /api/state, port: 8080 }   # this one IS plain HTTP, so httpGet is right
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: grpc-demo
+spec:
+  selector: { app: dashboard }
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

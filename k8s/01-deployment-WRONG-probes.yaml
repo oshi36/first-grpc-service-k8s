@@ -1,0 +1,37 @@
+# ACT 2a — the "copied from my REST service" mistake.
+#
+# httpGet probes speak HTTP/1.1. A gRPC server only speaks HTTP/2, so the
+# kubelet gets garbage back:
+#   Liveness probe failed: ... malformed HTTP response "\x00\x00\x06\x04..."
+# Result: pods never become Ready, and the liveness probe restarts them forever.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter
+  namespace: grpc-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: greeter }
+  template:
+    metadata:
+      labels: { app: greeter }
+    spec:
+      containers:
+        - name: greeter
+          image: greeter:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grpc
+              containerPort: 50051
+          readinessProbe:
+            httpGet:            # ❌ HTTP/1.1 against an HTTP/2-only port
+              path: /healthz
+              port: 50051
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:            # ❌ ...and this one restarts the pod
+              path: /healthz
+              port: 50051
+            periodSeconds: 3
+            failureThreshold: 2
