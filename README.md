@@ -124,7 +124,7 @@ ERROR: ... unexpected HTTP status code received from server: 404 (Not Found)
 make act4-problem
 ```
 
-**Expected (seen in a local rehearsal):**
+**Expected :**
 ```
 target=greeter.grpc-demo.svc.cluster.local:50051  lb=pick_first  (one ClientConn, reused for every RPC)
 ── result ── 300 requests, 1 pod(s) hit
@@ -170,15 +170,8 @@ Now the server sends GOAWAY every 15s. The client reconnects, re-resolves, and t
 
 ---
 
-## Fallbacks if the venue Wi-Fi dies
-
-- Everything after `make setup && make build` runs **offline** (`imagePullPolicy: IfNotPresent`). The only exception is the optional curl pod in 2a.
-- Record a terminal run (`asciinema rec`) of a full rehearsal as plan B.
-- If Envoy Gateway misbehaves, skip 4c. Act 4b tells the story by itself.
-
 ## What was verified while building this
 
 - Server and client compile against grpc-go v1.80.0 / protobuf-go v1.36.11 and pass `go vet`.
 - Behaviour was rehearsed with containers on a Docker network, where a shared DNS alias stands in for a headless Service: warm-up NOT_SERVING→SERVING, liveness staying SERVING, the HTTP/1.1 failure, pick_first (300/0/0) vs round_robin (100/99/101), new-replica starvation, and the MaxConnectionAge recovery.
 - All manifests pass `kubeconform -strict` against Kubernetes 1.34 and Gateway API schemas.
-- **Not yet run on a real kind cluster + Envoy Gateway.** Do one full rehearsal with `make setup` first.
